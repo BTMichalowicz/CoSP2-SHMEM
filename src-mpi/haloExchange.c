@@ -27,12 +27,12 @@ NonZeroMsg;
 /// \details
 HaloExchange* initHaloExchange(struct DomainSt* domain)
 {
-   HaloExchange* hh = (HaloExchange*)malloc(sizeof(HaloExchange));
+   HaloExchange* hh = (HaloExchange*)shmem_malloc(sizeof(HaloExchange));
    
    hh->maxHalo = domain->totalProcs;
 
    hh->haloCount = 0;
-   hh->haloProc = (int*)malloc(hh->maxHalo*sizeof(int));
+   hh->haloProc = (int*)shmem_malloc(hh->maxHalo*sizeof(int));
 
    hh->bufferSize = domain->localRowExtent * domain->totalCols * (
                     2 * sizeof(int) + sizeof(real_t)); // row, col, value
@@ -40,11 +40,11 @@ HaloExchange* initHaloExchange(struct DomainSt* domain)
    if (printRank() && debug == 1)
      printf("bufferSize = %d\n", hh->bufferSize);
 
-   hh->sendBuf = (char*)malloc(hh->bufferSize*sizeof(char));
-   hh->recvBuf = (char**)malloc(getNRanks()*sizeof(char*));
+   hh->sendBuf = (char*)shmem_malloc(hh->bufferSize*sizeof(char));
+   hh->recvBuf = (char**)shmem_malloc(getNRanks()*sizeof(char*));
    for (int i = 0; i < getNRanks(); i++)
    {
-     hh->recvBuf[i] = (char*)malloc(hh->bufferSize*sizeof(char));
+     hh->recvBuf[i] = (char*)shmem_malloc(hh->bufferSize*sizeof(char));
    }
 
    return hh;
@@ -53,16 +53,16 @@ HaloExchange* initHaloExchange(struct DomainSt* domain)
 /// \details
 void destroyHaloExchange(struct HaloExchangeSt* haloExchange)
 {
-  free(haloExchange->haloProc);
-  free(haloExchange->sendBuf);
+  shmem_free(haloExchange->haloProc);
+  shmem_free(haloExchange->sendBuf);
 
   for (int i = 0; i < getNRanks(); i++)
   {
-    free(haloExchange->recvBuf[i]);
+    shmem_free(haloExchange->recvBuf[i]);
   }
-  free(haloExchange->recvBuf);
+  shmem_free(haloExchange->recvBuf);
 
-  free(haloExchange);
+  shmem_free(haloExchange);
 }
 
 /// Setup for data exchange - post non-blocking reads
@@ -73,15 +73,15 @@ void exchangeSetup(struct HaloExchangeSt* haloExchange, struct SparseMatrixSt* s
 
   // Post receives from halo processors and
   // Send local row to halo processors
-  if (haloExchange->haloCount > 0)
-  {
+//  if (haloExchange->haloCount > 0)
+//  {
     // Post non-blocking receives
-    haloExchange->rlist = (int*)malloc(haloExchange->haloCount*sizeof(int));
-    for (int i = 0; i < haloExchange->haloCount; i++)
-    {
-      haloExchange->rlist[i] = irecvAnyParallel(haloExchange->recvBuf[i], haloExchange->bufferSize);
-    }
-  }
+//    haloExchange->rlist = (int*)malloc(haloExchange->haloCount*sizeof(int));
+//    for (int i = 0; i < haloExchange->haloCount; i++)
+//    {
+//      haloExchange->rlist[i] = irecvAnyParallel(haloExchange->recvBuf[i], haloExchange->bufferSize);
+//    }
+//  }
 }    
 
 /// This is the function that does the heavy lifting for the
@@ -94,14 +94,14 @@ void exchangeData(struct HaloExchangeSt* haloExchange, struct SparseMatrixSt* sp
     int nSendLen = loadBuffer(haloExchange->sendBuf, spmatrix, domain);
     for (int i = 0; i < haloExchange->haloCount; i++)
     {
-      int nSend = sendParallel(haloExchange->sendBuf, nSendLen, haloExchange->haloProc[i]);
+      int nSend = put_Parallel(haloExchange->sendBuf, haloExchange->recvBuf[i], nSendLen, haloExchange->haloProc[i]);
       collectCounter(sendCounter, nSendLen);
     }
 
     // Receive remote rows from each halo processor
     for (int i = 0; i < haloExchange->haloCount; i++)
     {
-      int nRecv = waitIrecv(haloExchange->rlist[i]);
+      int nRecv = nSendLen; //waitIrecv(haloExchange->rlist[i]);
       unloadBuffer(haloExchange->recvBuf[i], nRecv, spmatrix, domain); 
       collectCounter(recvCounter, nRecv);
     }
@@ -137,23 +137,60 @@ void gatherData(struct HaloExchangeSt* haloExchange, struct SparseMatrixSt* spma
   int myRank = getMyRank();
 
   // If rank 0, read all blocks that have not been received as halos
+  int *nRecv = shmem_malloc(sizeof(int));
+  int *nSend = shmem_malloc(sizeof(int));
+  if (myRank != 0){
+      if (!(isHaloProc(haloExchange, 0))){
+          int nSendLen = loadBuffer(haloExchange->sendBuf[0], spmatrix, domain);
+          *nSend = nSendLen;
+          if (rank == 1)
+              put_Parallel(nRecv,nSend, sizeof(int), 0);
+          put_Parallel(haloExchange->sendBuf, haloExchange->recvBuf[myRank], nSendLen, 0);
+          collectCounter(sendCounter, nSendLen);
+      }
+  }
+
+  shmem_barrier_all();
+
+  if (myRank == 0){
+      int ir = 0;
+      int i = 1;
+      int nranks = getNRanks();
+      for (; i<getNRanks; i++){
+          if (!isHaloProc(haloExchange, i)){
+              ir++;
+          }
+      }
+      for (i = 0 ; i< ir; i++){
+          unloadBuffer(haloExchange->recvBuf[i], *nRecv, spmatrix, domain);
+          collectCounter(recvCounter, nRecv);
+      }
+  }
+  shmem_free(nRecv);
+  shmem_free(nSend);
+
+      
+/*      
+
   if (myRank == 0)
   {
-    free(haloExchange->rlist);
-    haloExchange->rlist = (int*)malloc((getNRanks() - haloExchange->haloCount)*sizeof(int));
+    //free(haloExchange->rlist);
+//    haloExchange->rlist = (int*)malloc((getNRanks() - haloExchange->haloCount)*sizeof(int));
     int ir = 0;
     for (int i = 1; i < getNRanks(); i++)
     {
       if (!isHaloProc(haloExchange, i))
       {
-        haloExchange->rlist[ir] = irecvAnyParallel(haloExchange->recvBuf[ir], haloExchange->bufferSize);
+        //haloExchange
+        //haloExchange->rlist[ir] = irecvAnyParallel(haloExchange->recvBuf[ir], haloExchange->bufferSize);
+        nb_get_Parallel(haloExchange->recvBuf[ir++], haloExchange->SendBuf[i], haloExchange->bufferSize);
         ir++;
       }
     }
-
+    
     for (int i = 0; i < ir; i++)
     {
-      int nRecv = waitIrecv(haloExchange->rlist[i]);
+      //int nRecv = waitIrecv(haloExchange->rlist[i]);
       unloadBuffer(haloExchange->recvBuf[i], nRecv, spmatrix, domain);
       collectCounter(recvCounter, nRecv);
     }  
@@ -169,23 +206,46 @@ void gatherData(struct HaloExchangeSt* haloExchange, struct SparseMatrixSt* spma
       collectCounter(sendCounter, nSendLen);
     }
   }
+  */
 }
 
 /// \details
 /// Gather sparse matrix data to processor 0
 void allGatherData(struct HaloExchangeSt* haloExchange, struct SparseMatrixSt* spmatrix, struct DomainSt* domain)
 {
-  int myRank = getMyRank();
+    int myRank = getMyRank();
 
-  // Post reads for all blocks that have not been received as halos
-  free(haloExchange->rlist);
-  haloExchange->rlist = (int*)malloc((getNRanks() - haloExchange->haloCount)*sizeof(int));
-  int ir = 0;
+    // Post reads for all blocks that have not been received as halos
+    //free(haloExchange->rlist);
+    //  haloExchange->rlist = (int*)malloc((getNRanks() - haloExchange->haloCount)*sizeof(int));
+
+    int ir = 0;
+    int nSend = 0; //shmem_malloc(sizeof(int));
+    int nRecv = 0; //shmem_malloc(sizeof(int));
+    nSend = loadBuffer(haloExchange->sendBuf, spmatrix, domain);
+    nRecv = nSend;
+    int i = 0,
+        nRanks = getNRanks();
+
+    for (i = 0; i<nRanks; i++){
+        if (i != myRank && !isHaloProc(haloExchange, i)){
+            ir++;
+            put_Parallel(haloExchange->sendBuf, haloExchange->recvBuf[i], nSend, i);
+            collectCounter(sendCounter, nSend);
+        }
+    }
+
+   for (i = 0; i<ir; i++){
+       unloadBuffer(haloExchange->recvBuf[i], nRecv, spmatrix, domain);
+       collectCounter(recvCounter, nRecv);
+   }
+/*
+//int ir = 0;
   for (int i = 0; i < getNRanks(); i++)
   {
     if (i != myRank && !isHaloProc(haloExchange, i))
     {
-      haloExchange->rlist[ir] = irecvAnyParallel(haloExchange->recvBuf[ir], haloExchange->bufferSize);
+//      haloExchange->rlist[ir] = irecvAnyParallel(haloExchange->recvBuf[ir], haloExchange->bufferSize);
       ir++;
     }
   }
@@ -207,6 +267,7 @@ void allGatherData(struct HaloExchangeSt* haloExchange, struct SparseMatrixSt* s
     unloadBuffer(haloExchange->recvBuf[i], nRecv, spmatrix, domain);
     collectCounter(recvCounter, nRecv);
   }
+  */
 }
 
 /// \details

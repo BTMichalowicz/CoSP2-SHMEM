@@ -172,12 +172,14 @@ void sparsity(struct SparseMatrixSt* spmatrix)
 void gershgorin(struct SparseMatrixSt* spmatrix, struct DomainSt* domain)
 {
   int hsize = spmatrix->hsize;
-  real_t eMin = 10000;
-  real_t eMax = -10000;
+  real_t *eMin = shmem_malloc(sizeof(real_t));
+         *eMin =10000;
+  real_t *eMax = shmem_malloc(sizeof(real_t));
+         *eMax = -10000;
 
   real_t sumP, sumM, maxMinusMin;
 
-  #pragma omp parallel for private(sumM,sumP) reduction(max:eMax) reduction(min:eMin)
+  #pragma omp parallel for private(sumM,sumP) reduction(max:(*eMax)) reduction(min:(*eMin))
   for(int i = 0; i < hsize; i++)
   {
     sumM = 0.0;
@@ -191,8 +193,8 @@ void gershgorin(struct SparseMatrixSt* spmatrix, struct DomainSt* domain)
         sumM -= hx;
       }
     }
-    eMax = ((eMax < (sumP + sumM)) ? sumP + sumM : eMax);
-    eMin = ((eMin > (sumP - sumM)) ? sumP - sumM : eMin);
+    *eMax = ((*eMax < (sumP + sumM)) ? sumP + sumM : *eMax);
+    *eMin = ((*eMin > (sumP - sumM)) ? sumP - sumM : *eMin);
 
   }
 
@@ -201,24 +203,24 @@ void gershgorin(struct SparseMatrixSt* spmatrix, struct DomainSt* domain)
   if (getNRanks() > 1)
   {
     startTimer(reduceCommTimer);
-    minRealReduce(&eMin);
+    minRealReduce(eMin);
     stopTimer(reduceCommTimer);
     collectCounter(reduceCounter, sizeof(real_t));
    
     startTimer(reduceCommTimer);
-    maxRealReduce(&eMax);
+    maxRealReduce(eMax);
     stopTimer(reduceCommTimer);
     collectCounter(reduceCounter, sizeof(real_t));
   }
 #endif
     
-  maxMinusMin = eMax-eMin;
+  maxMinusMin = *eMax-*eMin;
 
   if (printRank()) 
     printf("\nGershgorin:\nNew  eMax, eMin = %e, %e\n", eMax, eMin); // GERSGORIN BOUNDS;
 
-  spmatrix->maxEval = eMax;
-  spmatrix->minEval = eMin;
+  spmatrix->maxEval = *eMax;
+  spmatrix->minEval = *eMin;
   spmatrix->maxMinusMin = maxMinusMin;
 }
 

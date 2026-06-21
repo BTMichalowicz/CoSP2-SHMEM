@@ -379,7 +379,7 @@ void performanceStats(void)
       reduceSendBuf[ii].val = (double)perfTimer[ii].total;
       reduceSendBuf[ii].rank = getMyRank();
    }
-   minRankDoubleParallel(reduceSendBuf, reduceRecvBuf, numberOfTimers);   
+/*   minRankDoubleParallel(reduceSendBuf, reduceRecvBuf, numberOfTimers);   
    for (int ii = 0; ii < numberOfTimers; ii++)
    {
       perfTimer[ii].minValue = reduceRecvBuf[ii].val;
@@ -390,7 +390,7 @@ void performanceStats(void)
    {
       perfTimer[ii].maxValue = reduceRecvBuf[ii].val;
       perfTimer[ii].maxRank = reduceRecvBuf[ii].rank;
-   }
+   }*/
    
    // Determine standard deviation
    for (int ii = 0; ii < numberOfTimers; ii++)
@@ -416,7 +416,7 @@ void performanceStats(void)
 
 
    // Determine min and max across ranks and which rank
-   for (int ii = 0; ii < numberOfCounters; ii++)
+/*   for (int ii = 0; ii < numberOfCounters; ii++)
    {
       reduceSendBuf[ii].val = (double)perfCounter[ii].total;
       reduceSendBuf[ii].rank = getMyRank();
@@ -432,7 +432,7 @@ void performanceStats(void)
    {
       perfCounter[ii].maxValue = reduceRecvBuf[ii].val;
       perfCounter[ii].maxRank = reduceRecvBuf[ii].rank;
-   }
+   }*/
   
    // Determine standard deviation
    for (int ii = 0; ii < numberOfCounters; ii++)

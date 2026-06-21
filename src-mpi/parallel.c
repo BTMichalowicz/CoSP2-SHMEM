@@ -8,7 +8,7 @@
 #include "parallel.h"
 
 #ifdef DO_MPI
-#include <mpi.h>
+#include <shmem.h>
 #endif
 
 #include <stdio.h>
@@ -19,9 +19,9 @@
 
 static int myRank = 0;
 static int nRanks = 1;
-#ifdef DO_MPI
-static MPI_Request* requestList;
-#endif
+//#ifdef DO_MPI
+//static MPI_Request* requestList;
+//#endif
 static int* rUsed;
 static int reqCount = 0;
 
@@ -69,22 +69,25 @@ void timestampBarrier(const char* msg)
 void initParallel(int* argc, char*** argv)
 {
 #ifdef DO_MPI
-   MPI_Init(argc, argv);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
-   MPI_Comm_size(MPI_COMM_WORLD, &nRanks);
+   shmem_init();
+   myRank = shmem_my_pe();
+   nRanks = shmem_n_pes();
+//    MPI_Init(argc, argv);
+//   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+//   MPI_Comm_size(MPI_COMM_WORLD, &nRanks);
 
-   requestList = (MPI_Request*) malloc(nRanks*sizeof(MPI_Request));
-   rUsed = (int*) malloc(nRanks*sizeof(int));
-   for (int i = 0; i < nRanks; i++) { rUsed[i] = 0; }
+//   requestList = (MPI_Request*) malloc(nRanks*sizeof(MPI_Request));
+//   rUsed = (int*) malloc(nRanks*sizeof(int));
+//   for (int i = 0; i < nRanks; i++) { rUsed[i] = 0; }
 #endif
 }
 
 void destroyParallel()
 {
 #ifdef DO_MPI
-   free(requestList);
+//   free(requestList);
 
-   MPI_Finalize();
+   shmem_finalize(); //MPI_Finalize();
 #endif
 }
 
@@ -95,8 +98,8 @@ int saveRequest(MPI_Request req)
   {
     if (rUsed[i] == 0)
     {
-      requestList[i] = req;
-      rUsed[i] = 1;
+//      requestList[i] = req;
+//      rUsed[i] = 1;
       return i;
     } 
   }
@@ -106,7 +109,7 @@ int saveRequest(MPI_Request req)
 void barrierParallel()
 {
 #ifdef DO_MPI
-   MPI_Barrier(MPI_COMM_WORLD);
+   shmem_barrier_all(); //MPI_Barrier(MPI_COMM_WORLD);
 #endif
 }
 
@@ -122,13 +125,19 @@ int sendReceiveParallel(void* sendBuf, int sendLen, int dest,
 {
 #ifdef DO_MPI
    int bytesReceived;
-   MPI_Status status;
-   MPI_Sendrecv(sendBuf, sendLen, MPI_BYTE, dest,   0,
-                recvBuf, recvLen, MPI_BYTE, source, 0,
-                MPI_COMM_WORLD, &status);
-   MPI_Get_count(&status, MPI_BYTE, &bytesReceived);
+  // MPI_Status status;
+  // MPI_Sendrecv(sendBuf, sendLen, MPI_BYTE, dest,   0,
+  //              recvBuf, recvLen, MPI_BYTE, source, 0,
+  //              MPI_COMM_WORLD, &status);
+  // MPI_Get_count(&status, MPI_BYTE, &bytesReceived);
 
-   return bytesReceived;
+   shmem_putmem(recvBuf, sendBuf, sendLen, dest);
+   if (sendLen ==recvLen){
+       return sendLen;
+   }else{
+       return sendLen;
+   }
+   //return bytesReceived;
 #else
    assert(source == dest);
    memcpy(recvBuf, sendBuf, sendLen);
@@ -158,6 +167,15 @@ int isendParallel(void* sendBuf, int sendLen, int dest)
 #endif
 }
 
+int nbput_Parallel(void *sendBuf, void *RecvBuf, int SendLen, int dest){
+    shmem_putmem_nbi(RecvBuf, sendBuf, SendLen, dest);
+    return SendLen;
+}
+
+int put_Parallel(void *sendBuf, void *RecvBuf, int SendLen, int dest){
+    shmem_putmem(RecvBuf, sendBuf, SendLen, dest);
+    return SendLen;
+}
 /// \details
 /// Send to another processor.
 /// \param [in]  sendBuf Data to send.
@@ -179,7 +197,7 @@ int sendParallel(void* sendBuf, int sendLen, int dest)
 /// Receive from any processor.
 /// \param [out] recvBuf Received data.
 /// \param [in]  recvLen Maximum number of bytes to receive.
-int recvAnyParallel(void* recvBuf, int recvLen)
+/*int recvAnyParallel(void* recvBuf, int recvLen)
 {
 #ifdef DO_MPI
   int bytesReceived;
@@ -194,7 +212,7 @@ int recvAnyParallel(void* recvBuf, int recvLen)
 #else
   return recvLen;
 #endif
-}
+}*/
 
 /// \details
 /// Receive from any processor.
@@ -215,14 +233,18 @@ int irecvAnyParallel(void* recvBuf, int recvLen)
 #endif
 }
 
+int wait(){
+    shmem_quiet();
+}
+
 int waitIrecv(int rind)
 {
 #ifdef DO_MPI
-  MPI_Status status;
+//  MPI_Status status;
   int bytesReceived;
 
-  MPI_Wait(&requestList[rind], &status);
-  MPI_Get_count(&status, MPI_BYTE, &bytesReceived); 
+//  MPI_Wait(&requestList[rind], &status);
+//  MPI_Get_count(&status, MPI_BYTE, &bytesReceived); 
 
   rUsed[rind] = 0;
 
@@ -233,15 +255,15 @@ int waitIrecv(int rind)
 int testIrecv(int rind)
 {
 #ifdef DO_MPI
-  MPI_Status status;
+//  MPI_Status status;
   int bytesReceived;
   int flag;
 
-  MPI_Test(&requestList[rind], &flag, &status);
+//  MPI_Test(&requestList[rind], &flag, &status);
   if (flag > 0)
   {
-    MPI_Get_count(&status, MPI_BYTE, &bytesReceived);
-    rUsed[rind] = 0;
+//    MPI_Get_count(&status, MPI_BYTE, &bytesReceived);
+//    rUsed[rind] = 0;
     return bytesReceived;
   }
 
@@ -252,9 +274,9 @@ int testIrecv(int rind)
 int waitIsend(int rind)
 {
 #ifdef DO_MPI
-  MPI_Status status;
+//  MPI_Status status;
 
-  MPI_Wait(&requestList[rind], &status);
+ // MPI_Wait(&requestList[rind], &status);
   
   rUsed[rind] = 0;
 
@@ -265,13 +287,13 @@ int waitIsend(int rind)
 int testIsend(int rind)
 {
 #ifdef DO_MPI
-  MPI_Status status;
+  //MPI_Status status;
   int flag;
 
-  MPI_Test(&requestList[rind], &flag, &status);
+ // MPI_Test(&requestList[rind], &flag, &status);
   if (flag > 0)
   {
-    rUsed[rind] = 0;
+ //   rUsed[rind] = 0;
 
     return 1;
   }
@@ -320,7 +342,8 @@ int irecvParallel(void* recvBuf, int recvLen, int source)
 void addIntParallel(int* sendBuf, int* recvBuf, int count)
 {
 #ifdef DO_MPI
-   MPI_Allreduce(sendBuf, recvBuf, count, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    shmem_int_sum_reduce(SHMEM_TEAM_WORLD, recvBuf, sendBuf, count);
+   //MPI_Allreduce(sendBuf, recvBuf, count, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 #else
    for (int ii=0; ii<count; ++ii)
       recvBuf[ii] = sendBuf[ii];
@@ -330,7 +353,8 @@ void addIntParallel(int* sendBuf, int* recvBuf, int count)
 void addRealParallel(real_t* sendBuf, real_t* recvBuf, int count)
 {
 #ifdef DO_MPI
-   MPI_Allreduce(sendBuf, recvBuf, count, REAL_MPI_TYPE, MPI_SUM, MPI_COMM_WORLD);
+   shmem_double_sum_reduce(SHMEM_TEAM_WORLD, recvBuf, sendBuf, count);
+//   MPI_Allreduce(sendBuf, recvBuf, count, REAL_MPI_TYPE, MPI_SUM, MPI_COMM_WORLD);
 #else
    for (int ii=0; ii<count; ++ii)
       recvBuf[ii] = sendBuf[ii];
@@ -340,7 +364,8 @@ void addRealParallel(real_t* sendBuf, real_t* recvBuf, int count)
 void addDoubleParallel(double* sendBuf, double* recvBuf, int count)
 {
 #ifdef DO_MPI
-   MPI_Allreduce(sendBuf, recvBuf, count, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    shmem_double_sum_reduce(SHMEM_TEAM_WORLD, recvBuf, sendBuf, count);
+   //MPI_Allreduce(sendBuf, recvBuf, count, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #else
    for (int ii=0; ii<count; ++ii)
       recvBuf[ii] = sendBuf[ii];
@@ -350,7 +375,8 @@ void addDoubleParallel(double* sendBuf, double* recvBuf, int count)
 void maxIntParallel(int* sendBuf, int* recvBuf, int count)
 {
 #ifdef DO_MPI
-   MPI_Allreduce(sendBuf, recvBuf, count, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+    shmem_int_max_reduce(SHMEM_TEAM_WORLD, recvBuf, sendBuf, count);
+//   MPI_Allreduce(sendBuf, recvBuf, count, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 #else
    for (int ii=0; ii<count; ++ii)
       recvBuf[ii] = sendBuf[ii];
@@ -360,7 +386,8 @@ void maxIntParallel(int* sendBuf, int* recvBuf, int count)
 void maxRealParallel(real_t* sendBuf, real_t* recvBuf, int count)
 {
 #ifdef DO_MPI
-   MPI_Allreduce(sendBuf, recvBuf, count, REAL_MPI_TYPE, MPI_MAX, MPI_COMM_WORLD);
+   shmem_double_max_reduce(SHMEM_TEAM_WORLD, recvBuf, sendBuf, count); 
+//   MPI_Allreduce(sendBuf, recvBuf, count, REAL_MPI_TYPE, MPI_MAX, MPI_COMM_WORLD);
 #else
    for (int ii=0; ii<count; ++ii)
       recvBuf[ii] = sendBuf[ii];
@@ -370,7 +397,8 @@ void maxRealParallel(real_t* sendBuf, real_t* recvBuf, int count)
 void minRealParallel(real_t* sendBuf, real_t* recvBuf, int count)
 {
 #ifdef DO_MPI
-   MPI_Allreduce(sendBuf, recvBuf, count, REAL_MPI_TYPE, MPI_MIN, MPI_COMM_WORLD);
+   shmem_double_min_reduce(SHMEM_TEAM_WORLD, recvBuf, sendBuf, count); 
+//   MPI_Allreduce(sendBuf, recvBuf, count, REAL_MPI_TYPE, MPI_MIN, MPI_COMM_WORLD);
 #else
    for (int ii=0; ii<count; ++ii)
       recvBuf[ii] = sendBuf[ii];
@@ -380,7 +408,10 @@ void minRealParallel(real_t* sendBuf, real_t* recvBuf, int count)
 void minRankDoubleParallel(RankReduceData* sendBuf, RankReduceData* recvBuf, int count)
 {
 #ifdef DO_MPI
-   MPI_Allreduce(sendBuf, recvBuf, count, MPI_DOUBLE_INT, MPI_MINLOC, MPI_COMM_WORLD);
+ //  shmemx_double_minloc(SHMEM_TEAM_WORLD, recvBuf, sendBuf, count); /* TODO:  */
+ //  UTILIZE MINMAXLOC IN FURTHER INTEGRATION FOR SHMEM REDUCTION OPERATIONS AS
+ //  EXPERIMENTAL
+//   MPI_Allreduce(sendBuf, recvBuf, count, MPI_DOUBLE_INT, MPI_MINLOC, MPI_COMM_WORLD);
 #else
    for (int ii=0; ii<count; ++ii)
    {
@@ -393,7 +424,8 @@ void minRankDoubleParallel(RankReduceData* sendBuf, RankReduceData* recvBuf, int
 void maxRankDoubleParallel(RankReduceData* sendBuf, RankReduceData* recvBuf, int count)
 {
 #ifdef DO_MPI
-   MPI_Allreduce(sendBuf, recvBuf, count, MPI_DOUBLE_INT, MPI_MAXLOC, MPI_COMM_WORLD);
+   //shmemx_double_maxloc(SHMEM_TEAM_WORLD, recvBuf, sendBuf, count); 
+//   MPI_Allreduce(sendBuf, recvBuf, count, MPI_DOUBLE_INT, MPI_MAXLOC, MPI_COMM_WORLD);
 #else
    for (int ii=0; ii<count; ++ii)
    {
@@ -403,72 +435,80 @@ void maxRankDoubleParallel(RankReduceData* sendBuf, RankReduceData* recvBuf, int
 #endif
 }
 
+real_t rsLocal[2], rsGlobal[2];
+double dsLocal[2], dsGlobal[2];
+int    isLocal[2], isGlobal[2];
+
 void minRealReduce(real_t* value)
 {
-   real_t sLocal[1], sGlobal[1];
+ //  real_t sLocal[1], sGlobal[1];
 
-   sLocal[0] = *value;
+   rsLocal[0] = *value;
 
-   minRealParallel(sLocal, sGlobal, 1);
+   minRealParallel(rsLocal, rsGlobal, 1);
 
-   *value = sGlobal[0];
+   *value = rsGlobal[0];
 }
 
 void maxRealReduce(real_t* value)
 {
-   real_t sLocal[1], sGlobal[1];
+//   real_t sLocal[1], sGlobal[1];
 
-   sLocal[0] = *value;
+   rsLocal[0] = *value;
 
-   maxRealParallel(sLocal, sGlobal, 1);
+   maxRealParallel(rsLocal, rsGlobal, 1);
 
    *value = sGlobal[0];
 }
 
 void maxIntReduce2(int* value0, int* value1)
 {
-   int sLocal[2], sGlobal[2];
+//   int isLocal[2], isGlobal[2];
 
-   sLocal[0] = *value0;
-   sLocal[1] = *value1;
+   isLocal[0] = *value0;
+   isLocal[1] = *value1;
 
-   maxIntParallel(sLocal, sGlobal, 2);
+   maxIntParallel(isLocal, isGlobal, 2);
 
-   *value0 = sGlobal[0];
-   *value1 = sGlobal[1];
+   *value0 = isGlobal[0];
+   *value1 = isGlobal[1];
 }
 
 void addIntReduce2(int* value0, int* value1)
 {
-   int sLocal[2], sGlobal[2];
+  // int sLocal[2], sGlobal[2];
 
-   sLocal[0] = *value0;
-   sLocal[1] = *value1;
+   isLocal[0] = *value0;
+   isLocal[1] = *value1;
 
-   addIntParallel(sLocal, sGlobal, 2);
+   addIntParallel(isLocal, isGlobal, 2);
 
-   *value0 = sGlobal[0];
-   *value1 = sGlobal[1];
+   *value0 = isGlobal[0];
+   *value1 = isGlobal[1];
 }
 
 void addRealReduce2(real_t* value0, real_t* value1)
 {
-   real_t sLocal[2], sGlobal[2];
+ //  real_t *sLocal = shmem_malloc(2 * sizeof(real_t)), 
+ //         *sGlobal = shmem_malloc(2 * sizeof(real_t));
 
-   sLocal[0] = *value0;
-   sLocal[1] = *value1;
+   rsLocal[0] = *value0;
+   rsLocal[1] = *value1;
 
-   addRealParallel(sLocal, sGlobal, 2);
+   addRealParallel(rsLocal, rsGlobal, 2);
 
-   *value0 = sGlobal[0];
-   *value1 = sGlobal[1];
+   *value0 = rsGlobal[0];
+   *value1 = rsGlobal[1];
+//   shmem_free(sLocal);
+//   shmem_free(sLocal);
 }
 
 /// \param [in] count Length of buf in bytes.
 void bcastParallel(void* buf, int count, int root)
 {
 #ifdef DO_MPI
-   MPI_Bcast(buf, count, MPI_BYTE, root, MPI_COMM_WORLD);
+   shmem_broadcastmem(SHMEM_TEAM_WORLD, buf, buf, count, root); 
+//   MPI_Bcast(buf, count, MPI_BYTE, root, MPI_COMM_WORLD);
 #endif
 }
 

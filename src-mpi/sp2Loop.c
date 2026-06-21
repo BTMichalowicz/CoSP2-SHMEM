@@ -44,8 +44,11 @@ void sp2Loop(struct SparseMatrixSt* xmatrix, struct DomainSt* domain)
 
   real_t occ = hsize*HALF;
 
-  real_t trX = ZERO;
-  real_t trX2 = ZERO;
+  real_t *trX = shmem_malloc(sizeof(real_t)); //= ZERO;
+  real_t trX2 = shmem_malloc(sizeof(real_t));
+  *trX=ZERO;
+  *trX2=ZERO;
+      
 
   real_t tr2XX2, trXOLD, limDiff;
 
@@ -71,7 +74,7 @@ void sp2Loop(struct SparseMatrixSt* xmatrix, struct DomainSt* domain)
 
     // Matrix multiply X^2
     startTimer(x2Timer);
-    sparseX2(&trX, &trX2, xmatrix, x2matrix, domain);
+    sparseX2(trX, trX2, xmatrix, x2matrix, domain);
     stopTimer(x2Timer);
 
 #ifdef DO_MPI
