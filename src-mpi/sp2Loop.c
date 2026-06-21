@@ -45,7 +45,7 @@ void sp2Loop(struct SparseMatrixSt* xmatrix, struct DomainSt* domain)
   real_t occ = hsize*HALF;
 
   real_t *trX = shmem_malloc(sizeof(real_t)); //= ZERO;
-  real_t trX2 = shmem_malloc(sizeof(real_t));
+  real_t *trX2 = shmem_malloc(sizeof(real_t));
   *trX=ZERO;
   *trX2=ZERO;
       
@@ -60,8 +60,8 @@ void sp2Loop(struct SparseMatrixSt* xmatrix, struct DomainSt* domain)
 
   while ( breakLoop == 0 && iter < 100 )
   {
-    trX = ZERO;
-    trX2 = ZERO;
+    *trX = ZERO;
+    *trX2 = ZERO;
 
 #ifdef DO_MPI
     if (getNRanks() > 1)
@@ -82,23 +82,23 @@ void sp2Loop(struct SparseMatrixSt* xmatrix, struct DomainSt* domain)
     if (getNRanks() > 1)
     {
       startTimer(reduceCommTimer);
-      addRealReduce2(&trX, &trX2);
+      addRealReduce2(trX, trX2);
       stopTimer(reduceCommTimer);
       collectCounter(reduceCounter, 2 * sizeof(real_t));
     }
 #endif
 
     if (printRank() && debug == 1) 
-      printf("iter = %d  trX = %e  trX2 = %e\n", iter, trX, trX2);
+      printf("iter = %d  trX = %e  trX2 = %e\n", iter, *trX, *trX2);
  
-    tr2XX2 = TWO*trX - trX2;
-    trXOLD = trX;
-    limDiff = ABS(trX2 - occ) - ABS(tr2XX2 - occ);
+    tr2XX2 = TWO* (*trX) - (*trX2);
+    trXOLD = *trX;
+    limDiff = ABS((*trX2) - occ) - ABS(tr2XX2 - occ);
 
     if (limDiff > idemTol) 
     {
       // X = 2 * X - X^2
-      trX = TWO * trX - trX2;
+      *trX = TWO * (*trX) - (*trX2);
 
       startTimer(xaddTimer);
       sparseAdd(xmatrix, x2matrix, domain);
@@ -107,7 +107,7 @@ void sp2Loop(struct SparseMatrixSt* xmatrix, struct DomainSt* domain)
     else if (limDiff < -idemTol)
     {
       // X = X^2
-      trX = trX2;
+      *trX = *trX2;
 
       startTimer(xsetTimer);
       sparseSetX2(xmatrix, x2matrix, domain);
@@ -115,13 +115,13 @@ void sp2Loop(struct SparseMatrixSt* xmatrix, struct DomainSt* domain)
     }
     else 
     {
-      trX = trXOLD;
+      *trX = trXOLD;
       breakLoop = 1;
     }
          
     idempErr2 = idempErr1;
     idempErr1 = idempErr;
-    idempErr = ABS(trX - trXOLD);    
+    idempErr = ABS((*trX) - trXOLD);    
 
     iter++;
 
@@ -165,31 +165,44 @@ void reportResults(int iter, struct SparseMatrixSt* xmatrix, struct SparseMatrix
 {
   int hsize = xmatrix->hsize;
 
-  int sumIIA= 0;
-  int sumIIC= 0;
-  int maxIIA= 0;
-  int maxIIC= 0;
+  int *sumIIA= shmem_malloc(sizeof(int));
+  int *sumIIC= shmem_malloc(sizeof(int));
+  int *maxIIA= shmem_malloc(sizeof(int));
+  int *maxIIC= shmem_malloc(sizeof(int));
+  *sumIIA = 0;
+  *sumIIC = 0;
+  *maxIIA = 0;
+  *maxIIC = 0;
+  int temp_sumIIA = 0,
+      temp_sumIIC = 0,
+      temp_maxIIA = 0,
+      temp_maxIIC = 0;
 
-  #pragma omp parallel for reduction(+:sumIIA,sumIIC) reduction(max:maxIIA,maxIIC)  
+  #pragma omp parallel for reduction(+:temp_sumIIA,temp_sumIIC) reduction(max:temp_maxIIA,temp_maxIIC)  
   for (int i = domain->localRowMin; i < domain->localRowMax; i++)
   {
-    sumIIA += xmatrix->iia[i];
-    sumIIC += x2matrix->iia[i];
-    maxIIA = MAX(maxIIA, xmatrix->iia[i]);
-    maxIIC = MAX(maxIIC, x2matrix->iia[i]);
+    temp_sumIIA = (temp_sumIIA) + xmatrix->iia[i];
+    temp_sumIIC = (temp_sumIIA) + x2matrix->iia[i];
+    temp_maxIIA = MAX(temp_maxIIA, xmatrix->iia[i]);
+    temp_maxIIC = MAX(temp_maxIIC, x2matrix->iia[i]);
   }
 
+
+  *sumIIA = temp_sumIIA;
+  *sumIIC = temp_sumIIC;
+  *maxIIA = temp_maxIIA;
+  *maxIIC = temp_maxIIC;
 #ifdef DO_MPI
   // Collect number of non-zeroes and max non-zeroes per row across ranks
   if (getNRanks() > 1)
   {
     startTimer(reduceCommTimer);
-    addIntReduce2(&sumIIA, &sumIIC);
+    addIntReduce2(sumIIA, sumIIC);
     stopTimer(reduceCommTimer);
     collectCounter(reduceCounter, 2 * sizeof(int));
 
     startTimer(reduceCommTimer);
-    maxIntReduce2(&maxIIA, &maxIIC);
+    maxIntReduce2(maxIIA, maxIIC);
     stopTimer(reduceCommTimer);
     collectCounter(reduceCounter, 2 * sizeof(int));
   }
@@ -199,10 +212,10 @@ void reportResults(int iter, struct SparseMatrixSt* xmatrix, struct SparseMatrix
   {
     printf("\nResults:\n");
     printf("X2 Sparsity CCN = %d, fraction = %e avg = %g, max = %d\n", sumIIC, 
-      (real_t)sumIIC/(real_t)(hsize*hsize), (real_t)sumIIC/(real_t)hsize, maxIIC);
+      (real_t)(*sumIIC)/(real_t)(hsize*hsize), (real_t)(*sumIIC)/(real_t)hsize, *maxIIC);
 
     printf("D Sparsity AAN = %d, fraction = %e avg = %g, max = %d\n", sumIIA, 
-      (real_t)sumIIA/(real_t)(hsize*hsize), (real_t)sumIIA/(real_t)hsize, maxIIA);
+      (real_t)(*sumIIA)/(real_t)(hsize*hsize), (real_t)(*sumIIA)/(real_t)hsize, (*maxIIA));
 
     printf("Number of iterations = %d\n", iter);
   }

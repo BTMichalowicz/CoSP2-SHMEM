@@ -9,7 +9,7 @@
 #include <math.h>
 #include <assert.h>
 #include <omp.h>
-
+#include <shmem.h>
 #include "performance.h"
 #include "parallel.h"
 #include "constants.h"
@@ -178,8 +178,9 @@ void gershgorin(struct SparseMatrixSt* spmatrix, struct DomainSt* domain)
          *eMax = -10000;
 
   real_t sumP, sumM, maxMinusMin;
-
-  #pragma omp parallel for private(sumM,sumP) reduction(max:(*eMax)) reduction(min:(*eMin))
+  real_t temp_min = *eMin;
+  real_t temp_max = *eMax;
+  #pragma omp parallel for private(sumM,sumP) reduction(max:temp_max) reduction(min:temp_min)
   for(int i = 0; i < hsize; i++)
   {
     sumM = 0.0;
@@ -193,10 +194,13 @@ void gershgorin(struct SparseMatrixSt* spmatrix, struct DomainSt* domain)
         sumM -= hx;
       }
     }
-    *eMax = ((*eMax < (sumP + sumM)) ? sumP + sumM : *eMax);
-    *eMin = ((*eMin > (sumP - sumM)) ? sumP - sumM : *eMin);
+    temp_max = ((temp_max < (sumP + sumM)) ? sumP + sumM : temp_max);
+    temp_min = ((temp_min > (sumP - sumM)) ? sumP - sumM : temp_min);
 
   }
+
+  *eMin = temp_min;
+  *eMax = temp_max;
 
   // Determine eMax and eMin across ranks
 #ifdef DO_MPI

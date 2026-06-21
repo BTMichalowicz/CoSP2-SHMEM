@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
-
+#include <shmem.h>
 #include "sparseMatrix.h"
 #include "decomposition.h"
 #include "parallel.h"
@@ -141,29 +141,29 @@ void gatherData(struct HaloExchangeSt* haloExchange, struct SparseMatrixSt* spma
   int *nSend = shmem_malloc(sizeof(int));
   if (myRank != 0){
       if (!(isHaloProc(haloExchange, 0))){
-          int nSendLen = loadBuffer(haloExchange->sendBuf[0], spmatrix, domain);
+          int nSendLen = loadBuffer(haloExchange->sendBuf, spmatrix, domain);
           *nSend = nSendLen;
-          if (rank == 1)
+          if (myRank == 1)
               put_Parallel(nRecv,nSend, sizeof(int), 0);
           put_Parallel(haloExchange->sendBuf, haloExchange->recvBuf[myRank], nSendLen, 0);
           collectCounter(sendCounter, nSendLen);
       }
   }
 
-  shmem_barrier_all();
+  barrierParallel();
 
   if (myRank == 0){
       int ir = 0;
       int i = 1;
       int nranks = getNRanks();
-      for (; i<getNRanks; i++){
+      for (; i<nranks; i++){
           if (!isHaloProc(haloExchange, i)){
               ir++;
           }
       }
       for (i = 0 ; i< ir; i++){
           unloadBuffer(haloExchange->recvBuf[i], *nRecv, spmatrix, domain);
-          collectCounter(recvCounter, nRecv);
+          collectCounter(recvCounter, *nRecv);
       }
   }
   shmem_free(nRecv);

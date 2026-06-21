@@ -27,9 +27,9 @@ static int reqCount = 0;
 
 #ifdef DO_MPI
 #ifdef SINGLE
-#define REAL_MPI_TYPE MPI_FLOAT
+//#define REAL_MPI_TYPE MPI_FLOAT
 #else
-#define REAL_MPI_TYPE MPI_DOUBLE
+//#define REAL_MPI_TYPE MPI_DOUBLE
 #endif
 
 #endif
@@ -91,7 +91,7 @@ void destroyParallel()
 #endif
 }
 
-#ifdef DO_MPI
+/*#ifdef DO_MPI
 int saveRequest(MPI_Request req)
 {
   for (int i = 0; i < nRanks; i++)
@@ -104,7 +104,7 @@ int saveRequest(MPI_Request req)
     } 
   }
 }
-#endif
+#endif*/
 
 void barrierParallel()
 {
@@ -151,7 +151,7 @@ int sendReceiveParallel(void* sendBuf, int sendLen, int dest,
 /// \param [in]  sendBuf Data to send.
 /// \param [in]  sendLen Number of bytes to send.
 /// \param [in]  dest    Rank in MPI_COMM_WORLD where data will be sent.
-int isendParallel(void* sendBuf, int sendLen, int dest)
+/*int isendParallel(void* sendBuf, int sendLen, int dest)
 {
 #ifdef DO_MPI
   MPI_Request request;
@@ -165,7 +165,7 @@ int isendParallel(void* sendBuf, int sendLen, int dest)
 #else
   return 0; 
 #endif
-}
+}*/
 
 int nbput_Parallel(void *sendBuf, void *RecvBuf, int SendLen, int dest){
     shmem_putmem_nbi(RecvBuf, sendBuf, SendLen, dest);
@@ -181,7 +181,7 @@ int put_Parallel(void *sendBuf, void *RecvBuf, int SendLen, int dest){
 /// \param [in]  sendBuf Data to send.
 /// \param [in]  sendLen Number of bytes to send.
 /// \param [in]  dest    Rank in MPI_COMM_WORLD where data will be sent.
-int sendParallel(void* sendBuf, int sendLen, int dest)
+/*int sendParallel(void* sendBuf, int sendLen, int dest)
 {
 #ifdef DO_MPI
   MPI_Send(sendBuf, sendLen, MPI_BYTE,
@@ -191,7 +191,7 @@ int sendParallel(void* sendBuf, int sendLen, int dest)
 #else
   return sendLen;
 #endif
-}
+}*/
 
 /// \details
 /// Receive from any processor.
@@ -218,7 +218,7 @@ int sendParallel(void* sendBuf, int sendLen, int dest)
 /// Receive from any processor.
 /// \param [out] recvBuf Received data.
 /// \param [in]  recvLen Maximum number of bytes to receive.
-int irecvAnyParallel(void* recvBuf, int recvLen)
+/*int irecvAnyParallel(void* recvBuf, int recvLen)
 {
 #ifdef DO_MPI
   MPI_Request request;
@@ -231,13 +231,13 @@ int irecvAnyParallel(void* recvBuf, int recvLen)
 #else
   return 0;
 #endif
-}
+}*/
 
 int wait(){
     shmem_quiet();
 }
 
-int waitIrecv(int rind)
+/*int waitIrecv(int rind)
 {
 #ifdef DO_MPI
 //  MPI_Status status;
@@ -250,9 +250,9 @@ int waitIrecv(int rind)
 
   return bytesReceived;
 #endif
-}
+}*/
 
-int testIrecv(int rind)
+/*int testIrecv(int rind)
 {
 #ifdef DO_MPI
 //  MPI_Status status;
@@ -269,7 +269,7 @@ int testIrecv(int rind)
 
   return -1;
 #endif
-}
+}*/
 
 int waitIsend(int rind)
 {
@@ -307,7 +307,7 @@ int testIsend(int rind)
 /// \param [out] recvBuf Received data.
 /// \param [in]  recvLen Maximum number of bytes to receive.
 /// \param [in]  src MPI rank message source
-int recvParallel(void* recvBuf, int recvLen, int source)
+/*int recvParallel(void* recvBuf, int recvLen, int source)
 {
 #ifdef DO_MPI
   int bytesReceived;
@@ -322,9 +322,9 @@ int recvParallel(void* recvBuf, int recvLen, int source)
 #else
   return recvLen;
 #endif
-}
+}*/
 
-int irecvParallel(void* recvBuf, int recvLen, int source)
+/*int irecvParallel(void* recvBuf, int recvLen, int source)
 {
 #ifdef DO_MPI
   int bytesReceived;
@@ -337,7 +337,7 @@ int irecvParallel(void* recvBuf, int recvLen, int source)
 #else
   return 0;
 #endif
-}
+}*/
 
 void addIntParallel(int* sendBuf, int* recvBuf, int count)
 {
@@ -458,7 +458,7 @@ void maxRealReduce(real_t* value)
 
    maxRealParallel(rsLocal, rsGlobal, 1);
 
-   *value = sGlobal[0];
+   *value = rsGlobal[0];
 }
 
 void maxIntReduce2(int* value0, int* value1)

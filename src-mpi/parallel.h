@@ -78,6 +78,11 @@ void addRealParallel(real_t* sendBuf, real_t* recvBuf, int count);
 /// Wrapper for MPI_Allreduce double sum.
 void addDoubleParallel(double* sendBuf, double* recvBuf, int count);
 
+
+int nbput_Parallel(void *sendBuf, void *RecvBuf, int SendLen, int dest);
+
+int put_Parallel(void *sendBuf, void *RecvBuf, int SendLen, int dest);
+
 /// Wrapper for MPI_Allreduce real min.
 void minRealReduce(real_t* value);
 void minRealParallel(real_t* sendBuf, real_t* recvBuf, int count);
