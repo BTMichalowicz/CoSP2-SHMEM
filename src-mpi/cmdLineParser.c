@@ -8,7 +8,7 @@
 /// \date July 24, 2007
 
 #include "cmdLineParser.h"
-
+#include <shmem.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
