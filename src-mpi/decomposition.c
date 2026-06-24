@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
-
+#include <shmem.h>
 #include "parallel.h"
 #include "constants.h"
 

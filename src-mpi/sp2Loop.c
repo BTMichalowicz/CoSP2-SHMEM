@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-
+#include <shmem.h>
 #include "sparseMatrix.h"
 #include "sparseMath.h"
 #include "haloExchange.h"
