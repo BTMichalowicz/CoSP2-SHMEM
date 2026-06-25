@@ -17,7 +17,7 @@ Domain* initDecomposition(int nprocs, int nrows, int ncols)
 {
    assert( nprocs == getNRanks());
 
-   Domain* dd = (Domain*)shmem_malloc(sizeof(Domain));
+   Domain* dd = (Domain*)malloc(sizeof(Domain));
    dd->totalProcs = nprocs;
    dd->totalRows = nrows;
    dd->totalCols = ncols;
@@ -52,7 +52,7 @@ Domain* initDecomposition(int nprocs, int nrows, int ncols)
 /// Deallocate decomposition
 void destroyDecomposition(struct DomainSt* domain)
 {
-  shmem_free(domain);
+  free(domain);
 }
 
 /// \details

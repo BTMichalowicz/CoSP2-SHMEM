@@ -123,9 +123,17 @@ int main(int argc, char** argv)
   stopTimer(preTimer);
 
   // Calculate domain decomposition
+
+  if (printRank())
+  {
+      printf("initializing Decomposition\n");
+  }
   Domain* domain = initDecomposition(getNRanks(), spH->hsize, spH->msize);
-  
+
   // Determine sparsity
+  if(printRank()){
+      printf("Beginning Sparsity\n");
+  }
   sparsity(spH);
   
   // Calculate gershgorin bounds for sparse matrix
@@ -140,6 +148,11 @@ int main(int argc, char** argv)
   profileStop(loopTimer);
 
   /// Show timing results
+
+  if (printRank()){
+      printf("Printing results...\n");
+  }
+  fflush(stdout);
   printPerformanceResults(spH->hsize, 0);
 
   /// Write out density matrix

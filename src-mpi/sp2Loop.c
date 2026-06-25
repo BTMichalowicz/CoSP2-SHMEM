@@ -58,7 +58,7 @@ void sp2Loop(struct SparseMatrixSt* xmatrix, struct DomainSt* domain)
   if (printRank() && debug == 1)
     printf("\nSP2Loop:\n");
 
-  while ( breakLoop == 0 && iter < 100 )
+  while ( breakLoop == 0 && iter < 22 )
   {
     *trX = ZERO;
     *trX2 = ZERO;

@@ -27,12 +27,12 @@ NonZeroMsg;
 /// \details
 HaloExchange* initHaloExchange(struct DomainSt* domain)
 {
-   HaloExchange* hh = (HaloExchange*)shmem_malloc(sizeof(HaloExchange));
+   HaloExchange* hh = (HaloExchange*)malloc(sizeof(HaloExchange));
    
    hh->maxHalo = domain->totalProcs;
 
    hh->haloCount = 0;
-   hh->haloProc = (int*)shmem_malloc(hh->maxHalo*sizeof(int));
+   hh->haloProc = (int*)malloc(hh->maxHalo*sizeof(int));
 
    hh->bufferSize = domain->localRowExtent * domain->totalCols * (
                     2 * sizeof(int) + sizeof(real_t)); // row, col, value
@@ -40,11 +40,11 @@ HaloExchange* initHaloExchange(struct DomainSt* domain)
    if (printRank() && debug == 1)
      printf("bufferSize = %d\n", hh->bufferSize);
 
-   hh->sendBuf = (char*)shmem_malloc(hh->bufferSize*sizeof(char));
-   hh->recvBuf = (char**)shmem_malloc(getNRanks()*sizeof(char*));
+   hh->sendBuf = (char*)shmem_malloc((hh->bufferSize+8)*sizeof(char));
+   hh->recvBuf = (char**)malloc(getNRanks()*sizeof(char*));
    for (int i = 0; i < getNRanks(); i++)
    {
-     hh->recvBuf[i] = (char*)shmem_malloc(hh->bufferSize*sizeof(char));
+     hh->recvBuf[i] = (char*)shmem_malloc((hh->bufferSize+8)*sizeof(char));
    }
 
    return hh;
@@ -53,16 +53,16 @@ HaloExchange* initHaloExchange(struct DomainSt* domain)
 /// \details
 void destroyHaloExchange(struct HaloExchangeSt* haloExchange)
 {
-  shmem_free(haloExchange->haloProc);
+  free(haloExchange->haloProc);
   shmem_free(haloExchange->sendBuf);
 
   for (int i = 0; i < getNRanks(); i++)
   {
     shmem_free(haloExchange->recvBuf[i]);
   }
-  shmem_free(haloExchange->recvBuf);
+  free(haloExchange->recvBuf);
 
-  shmem_free(haloExchange);
+  free(haloExchange);
 }
 
 /// Setup for data exchange - post non-blocking reads

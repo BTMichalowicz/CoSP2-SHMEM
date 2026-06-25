@@ -131,6 +131,10 @@ void profileStop(const enum TimerHandle handle)
    perfTimer[handle].elapsed += delta;
 }
 
+double profileGet(const enum TimerHandle handle){
+    return ((double)((double)perfTimer[handle].elapsed / 1e6f));
+}
+
 /// \details
 /// Return elapsed time (in seconds) since last call with this handle
 /// and clear for next lap.

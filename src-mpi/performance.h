@@ -59,7 +59,7 @@ enum TimerHandle{
 /// startTimer and stopTimer instead.
 void profileStart(const enum TimerHandle handle);
 void profileStop(const enum TimerHandle handle);
-
+double profileGet(const enum TimerHandle handle);
 /// Use to get elapsed time (lap timer).
 double getElapsedTime(const enum TimerHandle handle);
 
