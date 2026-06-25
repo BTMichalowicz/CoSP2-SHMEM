@@ -99,7 +99,9 @@ int main(int argc, char** argv)
   if (printRank()) printf("CoSP2: SP2 Loop\n");
 
   // Read in command line parameters
+  if (printRank()) printf("Entering command parsing\n");
   Command cmd = parseCommandLine(argc, argv);
+  if (printRank()) printf("Exiting command parsing\n");
   msparse = cmd.M;
   hDim = cmd.N;
   debug = cmd.debug;
