@@ -34,7 +34,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <math.h>
-
+#include <shmem.h>
 #include "parallel.h"
 #include "mytype.h"
 
@@ -365,7 +365,10 @@ static double getTick(void)
 void performanceStats(void)
 {
    int numberOfBuffers = (numberOfTimers > numberOfCounters) ? numberOfTimers : numberOfCounters;
-   double sendBuf[numberOfBuffers], recvBuf[numberOfBuffers];
+   double *sendBuf = shmem_malloc(numberOfBuffers * sizeof(double));
+   //[numberOfBuffers], 
+   double *recvBuf = shmem_malloc(numberOfBuffers * sizeof(double));
+   //[numberOfBuffers];
    
    // Determine average of each timer across ranks
    for (int ii = 0; ii < numberOfTimers; ii++)
@@ -449,6 +452,9 @@ void performanceStats(void)
    {
       perfCounter[ii].stdev = sqrt(recvBuf[ii] / (double) getNRanks());
    }
+
+   shmem_free(sendBuf);
+   shmem_free(recvBuf);
 
 }
 

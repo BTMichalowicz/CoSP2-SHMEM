@@ -117,7 +117,7 @@ Command parseCommandLine(int argc, char** argv)
    addArg("heps",       'p', 1, 'd',  &(cmd.heps),         0,             "threshold for dense2sparse");
    addArg("idemtol",    'i', 1, 'd',  &(cmd.idemTol),      0,             "threshold for SP2 loop");
 
-   printf("Processing args %s\n", argv[1]);
+   if (printRank()){printf("Processing args %s\n", argv[1]);}
    processArgs(argc,argv);
     if (printRank()){
         printf("cmd.hmatName: %s\n", cmd.hmatName);

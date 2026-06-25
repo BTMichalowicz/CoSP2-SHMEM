@@ -14,6 +14,23 @@
 #include "constants.h"
 #include "mytype.h"
 
+
+#define dbgben 1
+
+#if dbgben
+#define DEBUG_BEN(fmt, args...)                         \
+    do {                                                \
+        int rank = getMyRank();                         \
+        fflush(stdout); fflush(stderr);                 \
+        fprintf(stdout, "[rank_%d][%s][%s:%d] "fmt,     \
+                rank, __FILE__, __func__, __LINE__,     \
+                ##args);                                \
+        fflush(stdout); fflush(stderr);                 \
+    } while(0);
+#else
+#define DEBUG_BEN(...)
+#endif
+
 /// A structure to package data for a single row to pack into a
 /// send/recv buffer.
 typedef struct NonZeroMsgSt
@@ -40,7 +57,7 @@ HaloExchange* initHaloExchange(struct DomainSt* domain)
    if (printRank() && debug == 1)
      printf("bufferSize = %d\n", hh->bufferSize);
 
-   hh->sendBuf = (char*)shmem_malloc((hh->bufferSize+8)*sizeof(char));
+   hh->sendBuf = (char*)shmem_malloc((hh->bufferSize*2)*sizeof(char));
    hh->recvBuf = (char**)malloc(getNRanks()*sizeof(char*));
    for (int i = 0; i < getNRanks(); i++)
    {
@@ -94,6 +111,8 @@ void exchangeData(struct HaloExchangeSt* haloExchange, struct SparseMatrixSt* sp
     int nSendLen = loadBuffer(haloExchange->sendBuf, spmatrix, domain);
     for (int i = 0; i < haloExchange->haloCount; i++)
     {
+        DEBUG_BEN("halo %d block put of buffer %p to recvBuf %p of len %d to proc %d\n",
+                i, haloExchange->sendBuf, haloExchange->recvBuf[i], nSendLen, haloExchange->haloProc[i]);
       int nSend = put_Parallel(haloExchange->sendBuf, haloExchange->recvBuf[i], nSendLen, haloExchange->haloProc[i]);
       collectCounter(sendCounter, nSendLen);
     }
@@ -102,6 +121,9 @@ void exchangeData(struct HaloExchangeSt* haloExchange, struct SparseMatrixSt* sp
     for (int i = 0; i < haloExchange->haloCount; i++)
     {
       int nRecv = nSendLen; //waitIrecv(haloExchange->rlist[i]);
+      
+     DEBUG_BEN("halo %d unloading of buffer %p to spMatrix %p of len %d to domain %p\n",
+                i, haloExchange->recvBuf[i], spmatrix, nSendLen, domain);
       unloadBuffer(haloExchange->recvBuf[i], nRecv, spmatrix, domain); 
       collectCounter(recvCounter, nRecv);
     }

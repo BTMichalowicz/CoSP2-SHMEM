@@ -47,7 +47,7 @@ static MyOption* myOptionAlloc(
    int has_arg, const char type, void* dataPtr, int dataSize, const char* help)
 {
    static int iBase=129;
-   MyOption* o = (MyOption*)shmem_calloc(1, sizeof(MyOption));
+   MyOption* o = (MyOption*)calloc(1, sizeof(MyOption));
    o->help = dupString(help);
    o->longArg = dupString(longOption);
    if(shortOption) o->shortArg[0] = (unsigned char)shortOption;
@@ -69,7 +69,7 @@ static MyOption* myOptionFree(MyOption* o)
    MyOption* r;
    if(!o) return NULL;
    r = nextOption(o);
-   if(o->longArg)shmem_free(o->longArg);
+   if(o->longArg)free(o->longArg);
    if(o->help)free(o->help);
    free(o);
    return r;
